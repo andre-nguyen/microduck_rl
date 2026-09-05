@@ -3537,6 +3537,73 @@ def terrain_levels_slope(env: ManagerBasedRlEnv, env_ids: torch.Tensor) -> torch
     return torch.mean(terrain.terrain_levels.float())
 
 
+def step_move_masks(
+    distance: "torch.Tensor",
+    height_gain: "torch.Tensor",
+    riser_distance: float,
+    step_height: "torch.Tensor",
+    climb_frac: float = 0.5,
+    stall_frac: float = 0.5,
+):
+    """Promotion/demotion masks for the single-step climbing curriculum.
+
+    move_up   : travelled past the riser AND gained height → it climbed, so make
+                the step taller. Both conditions are required: distance alone is
+                farmable by belly-flopping onto the tread, height alone by
+                hopping on the approach.
+    move_down : never even reached the riser → too hard, lower the step.
+
+    ``riser_distance`` is the forward distance from the spawn origin to a point
+    safely ON the tread (spawn_distance + a margin), so promotion means standing
+    on the step rather than merely touching it. Keep it below the distance at
+    which the episode ends, otherwise a successful climber is never promoted —
+    the bug ``slope_move_masks`` documents.
+    """
+    climbed = height_gain > step_height * climb_frac
+    move_up = (distance > riser_distance) & climbed
+    move_down = (distance < riser_distance * stall_frac) & (~move_up)
+    return move_up, move_down
+
+
+def terrain_levels_step(
+    env: ManagerBasedRlEnv,
+    env_ids: torch.Tensor,
+    riser_distance: float = 1.0,
+    nominal_base_z: float = 0.115,
+    step_height_min: float = 0.005,
+    step_height_max: float = 0.05,
+) -> torch.Tensor:
+    """Step-height curriculum: promote envs that actually climbed the riser."""
+    asset = env.scene["robot"]
+    terrain = env.scene.terrain
+    assert terrain is not None
+    terrain_generator = terrain.cfg.terrain_generator
+    assert terrain_generator is not None
+
+    distance = (
+        asset.data.root_link_pos_w[env_ids, 0] - env.scene.env_origins[env_ids, 0]
+    )
+    height_gain = (
+        asset.data.root_link_pos_w[env_ids, 2]
+        - env.scene.env_origins[env_ids, 2]
+        - nominal_base_z
+    )
+    # Step height of the row each env currently sits on; mirrors
+    # step_height_by_difficulty, which the generator applied at build time.
+    difficulty = (
+        terrain.terrain_levels[env_ids].float() + 0.5
+    ) / terrain_generator.num_rows
+    step_height = step_height_min + difficulty.clamp(0.0, 1.0) * (
+        step_height_max - step_height_min
+    )
+
+    move_up, move_down = step_move_masks(
+        distance, height_gain, riser_distance, step_height
+    )
+    terrain.update_env_origins(env_ids, move_up, move_down)
+    return torch.mean(terrain.terrain_levels.float())
+
+
 def velocity_command_ranges_curriculum(
     env: ManagerBasedRlEnv,
     env_ids: torch.Tensor,

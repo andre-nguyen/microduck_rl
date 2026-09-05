@@ -80,6 +80,11 @@ override-dependencies = [
     # remote build), even though a warm local cache tolerated it. We only use
     # bam.mjlab (no zmq/erob messaging), so drop zmq via an always-false marker.
     "zmq ; python_version < '3.0'",
+    # rsl_rl's WandbSummaryWriter calls wandb.Settings(start_method="thread"),
+    # removed in wandb 0.25+ -> pydantic extra_forbidden ValidationError at the
+    # first logger init, i.e. every training run dies right after the networks
+    # are built. Unpin once rsl_rl drops the start_method argument.
+    "wandb<0.25",
 ]
 
 [tool.uv.sources]

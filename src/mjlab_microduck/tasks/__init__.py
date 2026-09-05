@@ -67,6 +67,10 @@ from .microduck_roller_standup_env_cfg import (
     make_microduck_roller_standup_env_cfg,
     MicroduckRollerStandUpRlCfg,
 )
+from .microduck_step_env_cfg import (
+    make_microduck_step_env_cfg,
+    MicroduckStepRlCfg,
+)
 from .microduck_spin_env_cfg import (
     make_microduck_spin_env_cfg,
     MicroduckSpinRlCfg,
@@ -203,6 +207,15 @@ register_mjlab_task(
     env_cfg=make_microduck_roller_slope_env_cfg(),
     play_env_cfg=make_microduck_roller_slope_env_cfg(play=True),
     rl_cfg=MicroduckRollerSlopeRlCfg,
+    runner_cls=MicroduckOnPolicyRunner,
+)
+
+# STEP UP — franchir une marche unique (modèle groundcontact, curriculum de hauteur).
+register_mjlab_task(
+    task_id="Mjlab-StepUp-Flat-MicroDuck",
+    env_cfg=make_microduck_step_env_cfg(),
+    play_env_cfg=make_microduck_step_env_cfg(play=True),
+    rl_cfg=MicroduckStepRlCfg,
     runner_cls=MicroduckOnPolicyRunner,
 )
 
